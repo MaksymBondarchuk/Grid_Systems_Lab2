@@ -2,7 +2,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <mpi.h>
-/* Обчислення підінтегральної функції */
+/* Обчислення функції */
 double function(double x)
 {
 /* x^3 */
@@ -17,16 +17,16 @@ return (fabs(I2 - I) / 3.) < epsilon;
 double integrate_left_rectangle(double start, double finish, double epsilon)
 {
 int num_iterations = 1; /* Початкова кількість ітерацій */
-double last_res = 0.; /* Результат інтeгрування на попередньому кроці */
+double last_res = 0.; /* Результат інтугрування на попередньому кроці */
 double res = -1.; /* Поточний результат інтегрування */
 double h = 0.; /* Ширина прямокутників */
-while(!check_Runge(res, last_res, epsilon))
+while (!check_Runge(res, last_res, epsilon))
 {
 num_iterations *= 2;
 last_res = res;
 res = 0.;
 h = (finish - start) / num_iterations;
-for(int i = 0; i < num_iterations; i++)
+for (int i = 0; i < num_iterations; i++)
 {
 res += function(start + i * h) * h;
 }
@@ -39,10 +39,10 @@ void write_double_to_file(const char* filename, double data)
 /* Відкриття файлу на запис */
 FILE *fp = fopen(filename, "w");
 /* Перевірка правильності відкриття файлу */
-if(fp == NULL)
+if (fp == NULL)
 {
-printf("Failed to open the file\n");
-/* Аварійне завершення всіх задач */
+printf("Failed to open the file");
+/* Завершення усіх процесів, що включені в комунікатор MPI_COMM_WORLD */
 MPI_Abort(MPI_COMM_WORLD, 1);
 }
 /* Запис 1 числа типу double в файл */
@@ -52,35 +52,39 @@ fclose(fp);
 }
 int main(int argc, char* argv[])
 {
-int np; /* кількість задач */
-int rank; /* ранг цієї задачі */
-MPI_Init(&argc, &argv);
+int np;
+int rank;
+/* Ініціалізація MPI */
+MPI_Init(&argc,&argv);
+/* Отримати кількість процесів */
 MPI_Comm_size(MPI_COMM_WORLD, &np);
+/* Отримати індивідуальний ідентифікатор процесу */
 MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-/* Введення даних з файлу в масив з 3-х змінних.
-* Відбувається у задачі 0.
-* input[0] -- нижня межа інтегрування
-* input[1] -- верхня межа інтегрування
-* input[2] -- допустима абсолютна похибка */
+/* Введення даних з файлу в масив з 3ох змінних. Відбувається у
+* процесі з ідентифікатором 0.
+* 1 - нижня межа інтегрування
+* 2 - верхня межа інтегрування
+* 3 - допустима похибка */
 double input[3];
-if(rank == 0)
+if (rank == 0)
 {
 /* Відкриття файлу input.txt у режимі лише для читання */
 FILE *fp = fopen("input.txt", "r");
 /* Перевірка правильності відкриття файлу */
-if(fp == NULL)
+if (fp == NULL)
 {
-printf("Failed to open the file\n");
-/* Аварійне завершення всіх задач */
+printf("Failed to open the file");
+/* Завершення усіх процесів, що включені в комунікатор MPI_COMM_WORLD */
 MPI_Abort(MPI_COMM_WORLD, 1);
 }
 /* Зчитування 3 чисел типу double */
-for(int i = 0; i < 3; i++)
+for (int i = 0; i < 3; i++)
 fscanf(fp, "%lg", &input[i]);
 /* Закриття файлу */
 fclose(fp);
 }
-/* Передача введених даних від задачі 0 до всіх інших задач */
+/* Передача введених даних від процесу 0 до всіх інших процесів, що
+* включені у комунікатор MPI_COMM_WORLD */
 MPI_Bcast(input, 3, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 double start = input[0];
 double finish = input[1];
@@ -88,39 +92,15 @@ double epsilon = input[2];
 double step = (finish - start) / np;
 double res = integrate_left_rectangle(start + rank * step, start +
 (rank + 1) * step, epsilon / np);
-/* Передача проміжного результату інтегрування від усіх задач,
-* окрім задачі 0, до задачі 0 */
-if(rank != 0)
-{
-MPI_Send(&res, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD);
-}
-/* Прийом задачею 0 проміжних результатів інтегрування
-* від усіх інших задач */
-if(rank == 0)
-{
-MPI_Request recv_reqs[np - 1];
-MPI_Status status[np - 1];
-double resall[np - 1];
-for(int i = 0; i < (np - 1); i++)
-{
-/* Прийом проміжного результату інтегрування без блокування виконання
-* програми. Після виконання операції масив resall стане недоступним
-* для використання */
-MPI_Irecv(&resall[i], 1, MPI_DOUBLE, (i+1), (i+1), MPI_COMM_WORLD,
-&recv_reqs[i]);
-}
-/* Очікування на завершення прийому усіх проміжних результатів
-* інтегрування. Після виконання операції масив resall знову
-* стане доступним для використання */
-MPI_Waitall(np - 1, recv_reqs, status);
-for(int i = 0; i < (np - 1); i++)
-{
-res += resall[i];
-}
-/* Виведення задачею 0 результату роботи програми у вихідний файл з ім’ям
+double result = res;
+/* Передача проміжного результату інтегрування від усіх процесів до процесу 0
+* та збереження суми проміжних результатів у змінній result */
+MPI_Reduce (&res, &result, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+/* Виведення процесом 0 результату роботи програми у вихідний файл з ім’ям
 * output.txt */
-write_double_to_file("output.txt", res);
-}
+if (rank == 0)
+write_double_to_file("output.txt", result);
+/* Закінчити роботу з MPI */
 MPI_Finalize();
 return 0;
 }
