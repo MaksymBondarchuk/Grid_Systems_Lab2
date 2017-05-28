@@ -37,16 +37,16 @@ return res;
 void write_double_to_file(const char* filename, double data)
 {
 /* Відкриття файлу на запис */
-FILE *fp = fopen(filename, ”w”);
+FILE *fp = fopen(filename, "w");
 /* Перевірка правильності відкриття файлу */
 if(fp == NULL)
 {
-printf(”Failed to open the file\n”);
+printf("Failed to open the file\n");
 /* Аварійне завершення всіх задач */
 MPI_Abort(MPI_COMM_WORLD, 1);
 }
 /* Запис 1 числа типу double в файл */
-fprintf(fp, ”%lg\n”, data);
+fprintf(fp, "%lg\n", data);
 /* Закриття файлу */
 fclose(fp);
 }
@@ -66,17 +66,17 @@ double input[3];
 if(rank == 0)
 {
 /* Відкриття файлу input.txt у режимі лише для читання */
-FILE *fp = fopen(”input.txt”, ”r”);
+FILE *fp = fopen("input.txt", "r");
 /* Перевірка правильності відкриття файлу */
 if(fp == NULL)
 {
-printf(”Failed to open the file\n”);
+printf("Failed to open the file\n");
 /* Аварійне завершення всіх задач */
 MPI_Abort(MPI_COMM_WORLD, 1);
 }
 /* Зчитування 3 чисел типу double */
 for(int i = 0; i < 3; i++)
-fscanf(fp, ”%lg”, &input[i]);
+fscanf(fp, "%lg", &input[i]);
 /* Закриття файлу */
 fclose(fp);
 }
@@ -119,7 +119,7 @@ res += resall[i];
 }
 /* Виведення задачею 0 результату роботи програми у вихідний файл з ім’ям
 * output.txt */
-write_double_to_file(”output.txt”, res);
+write_double_to_file("output.txt", res);
 }
 MPI_Finalize();
 return 0;
